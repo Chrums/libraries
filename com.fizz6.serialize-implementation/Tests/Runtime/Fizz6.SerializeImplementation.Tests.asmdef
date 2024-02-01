@@ -1,0 +1,17 @@
+{
+    "name": "Fizz6.SerializedImplementation.Tests",
+    "rootNamespace": "",
+    "references": [
+        "GUID:a37645cb3f97f2740bdf7960c58ba10d",
+        "GUID:796ad116b3eccbb4d98f123bf2720f0d"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

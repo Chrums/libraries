@@ -1,0 +1,16 @@
+{
+    "name": "Fizz6.Actor.Tests",
+    "rootNamespace": "",
+    "references": [
+        "GUID:d22673eb0fb17064585b42da30b7de2e"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

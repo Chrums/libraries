@@ -1,0 +1,17 @@
+{
+    "name": "Fizz6.Actor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:8df3405effaa55548a129119aa004931",
+        "GUID:a37645cb3f97f2740bdf7960c58ba10d"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

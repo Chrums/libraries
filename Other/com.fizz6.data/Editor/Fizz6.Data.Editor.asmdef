@@ -1,0 +1,21 @@
+{
+    "name": "Fizz6.Data.Editor",
+    "rootNamespace": "",
+    "references": [
+        "Fizz6.Data",
+        "Fizz6.Core",
+        "Fizz6.Core.Editor",
+        "Fizz6.Reflection"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

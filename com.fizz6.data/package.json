@@ -1,0 +1,14 @@
+{
+    "name": "com.fizz6.data",
+    "version": "1.0.0",
+    "displayName": "Data",
+    "description": "Provides a collection of components used to bind data.",
+    "unity": "2020.3",
+    "unityRelease": "30f1",
+    "dependencies": {},
+    "keywords": [],
+    "author": {
+        "name": "Fizz6",
+        "email": "chrumka.mj@gmail.com"
+    }
+}

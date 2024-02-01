@@ -1,0 +1,17 @@
+{
+    "name": "Fizz6.Data",
+    "rootNamespace": "",
+    "references": [
+        "GUID:8df3405effaa55548a129119aa004931",
+        "GUID:f0dc2a5309203c24fb02ac501b216ff7"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

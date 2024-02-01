@@ -1,0 +1,20 @@
+{
+    "name": "Fizz6.SerializeImplementation.Editor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:a37645cb3f97f2740bdf7960c58ba10d",
+        "GUID:8df3405effaa55548a129119aa004931",
+        "GUID:84478f79f0dcc2d459c7ff80178b3bf3"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

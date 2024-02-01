@@ -1,0 +1,16 @@
+{
+  "name": "com.fizz6.serialize-implementation",
+  "version": "1.0.0",
+  "displayName": "Serialize Implementation",
+  "description": "Contains a Serialize Implementation attribute and editor scripts that can be used to swap out backing implementation with a single MonoBehavior.",
+  "unity": "2020.3",
+  "unityRelease": "30f1",
+  "dependencies": {
+    "com.fizz6.core": "1.0.0"
+  },
+  "keywords": [],
+  "author": {
+    "name": "Fizz6",
+    "email": "chrumka.mj@gmail.com"
+  }
+}
