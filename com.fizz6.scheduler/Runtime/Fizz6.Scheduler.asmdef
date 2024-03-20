@@ -1,0 +1,16 @@
+{
+    "name": "Fizz6.Scheduler",
+    "rootNamespace": "",
+    "references": [
+        "GUID:8df3405effaa55548a129119aa004931"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

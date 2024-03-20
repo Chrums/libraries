@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Fizz6.Reflection
 {
     [Serializable]
-    public class SerializableAssembly
+    public class SerializableAssembly : IEquatable<SerializableAssembly>, IEquatable<Assembly>
     {
         [SerializeField]
         private string fullName;
@@ -35,16 +35,39 @@ namespace Fizz6.Reflection
             }
         }
 
-        public SerializableAssembly(Assembly value)
-        {
-            fullName = value.FullName;
-            _value = value;
-        }
+        public SerializableAssembly(Assembly value) =>
+            Value = value;
 
         public static implicit operator SerializableAssembly(Assembly value) =>
             new(value);
 
         public static implicit operator Assembly(SerializableAssembly value) =>
             value.Value;
+
+        public bool Equals(SerializableAssembly other)
+        {
+            if (ReferenceEquals(null, other)) 
+                return false;
+            if (ReferenceEquals(this, other)) 
+                return true;
+            return Value == other.Value;
+        }
+
+        public bool Equals(Assembly other) =>
+            Value == other;
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) 
+                return false;
+            if (ReferenceEquals(this, obj)) 
+                return true;
+            if (obj.GetType() != this.GetType()) 
+                return false;
+            return Equals((SerializableAssembly)obj);
+        }
+
+        public override int GetHashCode() =>
+            Value.GetHashCode();
     }
 }

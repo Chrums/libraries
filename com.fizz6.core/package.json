@@ -1,0 +1,14 @@
+{
+    "name": "com.fizz6.core",
+    "version": "1.0.0",
+    "displayName": "Core",
+    "description": "A collection of core components used in Fizz6 libraries.",
+    "unity": "2020.3",
+    "unityRelease": "30f1",
+    "dependencies": {},
+    "keywords": [],
+    "author": {
+        "name": "Fizz6",
+        "email": "chrumka.mj@gmail.com"
+    }
+}

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using Fizz6.Core;
 using Fizz6.Core.Editor;
 using Fizz6.Reflection;
@@ -14,120 +13,50 @@ namespace Fizz6.Data.Editor
     [CreateAssetMenu(fileName = "BindableTypeConfig", menuName = "Fizz6/Data/Bindable Type Config")]
     public class BindableTypeConfig : AssetDatabaseSingletonScriptableObject<BindableTypeConfig>
     {
-        [Serializable]
-        public class Record
-        {
-            [Serializable]
-            private class Item
-            {
-                [SerializeField] 
-                private SerializableType type;
-                public Type Type => type?.Value;
+        private static string AssetsDirectoryPath => "Assets";
+        private static string EditorDirectoryName => "Editor";
+        private static string EditorDirectoryPath => $"Assets/{EditorDirectoryName}";
+        private static string ModelConfigsDirectoryName => $"{nameof(ModelConfig)}s";
+        private static string ModelConfigsDirectoryPath => $"{EditorDirectoryPath}/{ModelConfigsDirectoryName}";
 
-                [SerializeField] 
-                private Bindables bindables;
-                public Bindables Bindables => bindables;
-            }
-
-            [Serializable]
-            public class Bindables
-            {
-                [SerializeField] 
-                private SerializableFieldInfo[] fieldInfos;
-                public IReadOnlyList<FieldInfo> FieldInfos => fieldInfos
-                    .Select(fieldInfo => fieldInfo?.Value)
-                    .ToArray();
-                
-                [SerializeField] 
-                private SerializablePropertyInfo[] propertyInfos;
-                public IReadOnlyList<PropertyInfo> PropertyInfos => propertyInfos
-                    .Select(propertyInfo => propertyInfo?.Value)
-                    .ToArray();
-                
-                [SerializeField] 
-                private SerializableMethodInfo[] methodInfos;
-                public IReadOnlyList<MethodInfo> MethodInfos => methodInfos
-                    .Select(methodInfo => methodInfo?.Value)
-                    .ToArray();
-            }
-            
-            [SerializeField] 
-            private SerializableType type;
-            public Type Type => type?.Value;
-
-            [SerializeField] 
-            private Item[] items;
-            
-            private Dictionary<Type, Bindables> _data;
-            public IReadOnlyDictionary<Type, Bindables> Data
-            {
-                get
-                {
-                    if (_data != null)
-                        return _data;
-
-                    _data = new();
-                    foreach (var item in items)
-                        _data[item.Type] = item.Bindables;
-
-                    return _data;
-                }
-            }
-        }
-        
         [InitializeOnLoadMethod]
-        private static void Register()
+        private static void InitializeOnLoad()
         {
-            AssetPostprocessorManager.ImportedAssetsEvent += OnImportedAssets;
-            CompilationPipeline.assemblyCompilationFinished += OnAssemblyCompilationFinished;
+            foreach (var assembly in Instance.assemblies)
+                AssemblyTypeModificationProcessor.AddTypesModifiedCallback(assembly, OnTypesModified);
         }
 
-        private static IReadOnlyList<string> _importedAssetPaths;
-
-        private static void OnImportedAssets(IReadOnlyList<string> assetPaths) =>
-            _importedAssetPaths = assetPaths;
-
-        private static void OnAssemblyCompilationFinished(string assemblyOutputPath, CompilerMessage[] compilerMessages)
+        private static void OnTypesModified(IReadOnlyList<Type> types)
         {
-            var assembly = CompilationPipeline.GetAssemblies()
-                .FirstOrDefault(assembly => assembly.outputPath == assemblyOutputPath);
-            if (assembly == null)
-                return;
-            
-            var formattedAssemblyOutputPath = assemblyOutputPath.Replace("/", "\\");
-            if (Instance.assembly?.Value != null && !Instance.assembly.Value.Location.EndsWith(formattedAssemblyOutputPath))
-                return;
-
-            var assetPaths = assembly.sourceFiles.Intersect(_importedAssetPaths);
-            _importedAssetPaths = null;
-
-            foreach (var assetPath in assetPaths)
-                TryRebuild(assetPath, out _);
+            foreach (var type in types)
+                TryRebuild(type, out _);
         }
 
         [MenuItem("Fizz6/Data/Rebuild BindableTypeConfig")]
         public static void Rebuild()
         {
-            var assembly = CompilationPipeline.GetAssemblies()
-                .FirstOrDefault(
-                    assembly =>
+            var compiledAssemblies = CompilationPipeline.GetAssemblies()
+                .Where(
+                    compiledAssembly =>
                     {
-                        var formattedAssemblyOutputPath = assembly.outputPath.Replace("/", "\\");
-                        return Instance.assembly.Value.Location.EndsWith(formattedAssemblyOutputPath);
+                        var formattedCompiledAssemblyOutputPath = compiledAssembly.outputPath.Replace("/", "\\");
+                        return Instance.assemblies.Any(assembly => assembly.Value != null && assembly.Value.Location.EndsWith(formattedCompiledAssemblyOutputPath));
                     }
-                );
+                )
+                .ToArray();
             
-            if (assembly == null)
+            if (compiledAssemblies.Length == 0)
                 return;
 
-            var assetPaths = assembly.sourceFiles;
+            var assetPaths = compiledAssemblies
+                .SelectMany(compiledAssembly => compiledAssembly.sourceFiles);
             foreach (var assetPath in assetPaths)
                 TryRebuild(assetPath, out _);
         }
 
-        private static bool TryRebuild(string assetPath, out Record record)
+        private static bool TryRebuild(string assetPath, out ModelConfig modelConfig)
         {
-            record = null;
+            modelConfig = null;
             
             var assetType = AssetDatabase.GetMainAssetTypeAtPath(assetPath);
             if (assetType != typeof(MonoScript))
@@ -137,88 +66,71 @@ namespace Fizz6.Data.Editor
             if (!TypeExt.TryGetTypeByName(monoScript.name, out var type))
                 return false;
 
+            return TryRebuild(type, out modelConfig);
+        }
+
+        private static bool TryRebuild(Type type, out ModelConfig modelConfig)
+        {
+            modelConfig = AssetDatabase.FindAssets($"t: {nameof(ModelConfig)}")
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .Select(AssetDatabase.LoadAssetAtPath<ModelConfig>)
+                .FirstOrDefault(modelConfig => modelConfig.Type == type);
+            
             var modelType = typeof(IModel);
             if (!modelType.IsAssignableFrom(type))
                 return false;
 
-            var bindableType = typeof(IBindable<>);
-            
-            var fieldInfosByType = new Dictionary<Type, HashSet<FieldInfo>>();
-            var fieldInfos = type.GetFields();
-            foreach (var typeFieldInfo in fieldInfos)
-            {
-                var interfaceTypes = typeFieldInfo.FieldType.GetInterfaces();
-                var bindableInterfaceType = interfaceTypes.FirstOrDefault(interfaceType => interfaceType.GetGenericTypeDefinition() == bindableType);
-                if (bindableInterfaceType == null)
-                    continue;
-                
-                var fieldType = bindableInterfaceType.GetGenericArguments().FirstOrDefault();
-                if (fieldType == null)
-                    continue;
+            AssetDatabase.StartAssetEditing();
 
-                if (!fieldInfosByType.TryGetValue(fieldType, out var bindableFieldInfos))
+            try
+            {
+                if (!AssetDatabase.IsValidFolder(EditorDirectoryPath))
+                    AssetDatabase.CreateFolder(AssetsDirectoryPath, EditorDirectoryName);
+
+                if (!AssetDatabase.IsValidFolder(ModelConfigsDirectoryPath))
+                    AssetDatabase.CreateFolder(EditorDirectoryPath, ModelConfigsDirectoryName);
+
+                if (modelConfig == null)
                 {
-                    bindableFieldInfos = new HashSet<FieldInfo>();
-                    fieldInfosByType[fieldType] = bindableFieldInfos;
+                    modelConfig = CreateInstance<ModelConfig>();
+                    modelConfig.Type = type;
+                    var path = $"{ModelConfigsDirectoryPath}/{type.Name}Config.asset";
+                    AssetDatabase.CreateAsset(modelConfig, path);
                 }
 
-                bindableFieldInfos.Add(typeFieldInfo);
-            }
-            
-            foreach (var (fieldType, bindableFieldInfos) in fieldInfosByType)
-            {
-                foreach (var bindableFieldInfo in bindableFieldInfos)
-                    Debug.LogError($"{fieldType.Name}: {bindableFieldInfo.Name}");
-            }
-            
-            var propertyInfosByType = new Dictionary<Type, HashSet<PropertyInfo>>();
-            var propertyInfos = type.GetProperties();
-            foreach (var typePropertyInfo in propertyInfos)
-            {
-                var interfaceTypes = typePropertyInfo.PropertyType.GetInterfaces();
-                var bindableInterfaceType = interfaceTypes.FirstOrDefault(interfaceType => interfaceType.GetGenericTypeDefinition() == bindableType);
-                if (bindableInterfaceType == null)
-                    continue;
-                
-                var propertyType = bindableInterfaceType.GetGenericArguments().FirstOrDefault();
-                if (propertyType == null)
-                    continue;
-
-                if (!propertyInfosByType.TryGetValue(propertyType, out var bindablePropertyInfos))
+                if (!modelConfig.TryBuild())
                 {
-                    bindablePropertyInfos = new HashSet<PropertyInfo>();
-                    propertyInfosByType[propertyType] = bindablePropertyInfos;
+                    AssetDatabase.StopAssetEditing();
+                    AssetDatabase.Refresh();
+                    return false;
                 }
-
-                bindablePropertyInfos.Add(typePropertyInfo);
             }
-            
-            var methodInfosByType = new Dictionary<Type, HashSet<MethodInfo>>();
-            var methodInfos = type.GetMethods();
-            foreach (var typeMethodInfo in methodInfos)
+            catch (Exception e)
             {
-                var interfaceTypes = typeMethodInfo.ReturnType.GetInterfaces();
-                var bindableInterfaceType = interfaceTypes.FirstOrDefault(interfaceType => interfaceType.GetGenericTypeDefinition() == bindableType);
-                if (bindableInterfaceType == null)
-                    continue;
-                
-                var methodType = bindableInterfaceType.GetGenericArguments().FirstOrDefault();
-                if (methodType == null)
-                    continue;
-
-                if (!methodInfosByType.TryGetValue(methodType, out var bindableMethodInfos))
-                {
-                    bindableMethodInfos = new HashSet<MethodInfo>();
-                    methodInfosByType[methodType] = bindableMethodInfos;
-                }
-
-                bindableMethodInfos.Add(typeMethodInfo);
+                Debug.LogError(e);
+                AssetDatabase.StopAssetEditing();
+                AssetDatabase.Refresh();
+                return false;
             }
 
-            return true;
+            AssetDatabase.SaveAssets();
+            AssetDatabase.StopAssetEditing();
+            AssetDatabase.Refresh();
+            
+            Debug.Log($"Rebuilt {nameof(ModelConfig)} for {type.Name}");
+
+            var subclassTypes = type.GetSubclassTypes();
+            return subclassTypes
+                .Aggregate(true, (current, subclassType) => current && TryRebuild(subclassType, out _));
         }
         
         [SerializeField] 
-        private SerializableAssembly assembly;
+        private SerializableAssembly[] assemblies;
+
+        private void OnDestroy()
+        {
+            foreach (var assembly in Instance.assemblies)
+                AssemblyTypeModificationProcessor.RemoveTypesModifiedCallback(assembly, OnTypesModified);
+        }
     }
 }

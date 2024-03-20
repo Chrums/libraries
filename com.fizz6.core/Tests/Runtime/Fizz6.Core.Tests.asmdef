@@ -1,0 +1,17 @@
+{
+    "name": "Fizz6.Core.Tests",
+    "rootNamespace": "",
+    "references": [
+        "GUID:8df3405effaa55548a129119aa004931",
+        "GUID:84478f79f0dcc2d459c7ff80178b3bf3"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
