@@ -9,6 +9,8 @@ namespace Fizz6.Data.Editor
 {
     public class ModelConfig : ScriptableObject
     {
+        private static readonly Type BindableType = typeof(IBindable<>);
+        
         [Serializable]
         public class Reference
         {
@@ -76,8 +78,6 @@ namespace Fizz6.Data.Editor
             }
         }
 
-        private Type BindableType => typeof(IBindable<>);
-
         public bool TryBuild()
         {
             if (Type == null)
@@ -98,9 +98,9 @@ namespace Fizz6.Data.Editor
                             _ => null
                         };
 
-                        if (interfaceTypes == null)
+                        if (interfaceTypes == null || !interfaceTypes.Any())
                             return false;
-            
+                        
                         var bindableInterfaceType = interfaceTypes
                             .FirstOrDefault(interfaceType => interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == BindableType);
                         if (bindableInterfaceType == null)

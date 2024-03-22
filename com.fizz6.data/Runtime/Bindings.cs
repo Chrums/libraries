@@ -7,9 +7,9 @@ namespace Fizz6.Data
 {
     public static class Bindings
     {
-        private class Source : IComparable<Source>
+        private class Source : IEquatable<Source>
         {
-            private string _identifier;
+            private readonly string _identifier;
             
             public Source(IBindable bindable)
             {
@@ -31,39 +31,55 @@ namespace Fizz6.Data
                 _identifier = $"{gameObjectIdentifier}-{componentTypeIdentifier}-{memberNameIdentifier}";
             }
 
-            public int CompareTo(Source other)
+            public bool Equals(Source other)
             {
-                if (ReferenceEquals(this, other)) 
-                    return 0;
-                
                 if (ReferenceEquals(null, other)) 
-                    return 1;
+                    return false;
                 
-                return string.Compare(_identifier, other._identifier, StringComparison.Ordinal);
+                if (ReferenceEquals(this, other)) 
+                    return true;
+                
+                return _identifier == other._identifier;
             }
 
-            public override string ToString()
+            public override bool Equals(object obj)
             {
-                // return base.ToString();
-                return _identifier;
+                if (ReferenceEquals(null, obj)) 
+                    return false;
+                
+                if (ReferenceEquals(this, obj)) 
+                    return true;
+                
+                if (obj.GetType() != this.GetType()) 
+                    return false;
+                
+                return Equals((Source)obj);
             }
+
+            public override int GetHashCode() =>
+                _identifier != null 
+                    ? _identifier.GetHashCode() 
+                    : 0;
+
+            public override string ToString() =>
+                _identifier;
         }
 
         private class Binding
         {
+            public IBindable Bindable { get; private set; }
             public event Action ValueChangedEvent;
-            private IBindable _bindable;
 
             public void Bind(IBindable bindable)
             {
-                _bindable = bindable;
-                _bindable.ValueChangedEvent += ValueChangedEvent;
+                Bindable = bindable;
+                Bindable.ValueChangedEvent += OnValueChanged;
             }
 
             public void Unbind()
             {
-                _bindable.ValueChangedEvent -= ValueChangedEvent;
-                _bindable = null;
+                Bindable.ValueChangedEvent -= OnValueChanged;
+                Bindable = null;
             }
 
             public void Subscribe(Action valueChangedCallback) =>
@@ -71,17 +87,20 @@ namespace Fizz6.Data
 
             public void Unsubscribe(Action valueChangedCallback) =>
                 ValueChangedEvent -= valueChangedCallback;
+
+            private void OnValueChanged() =>
+                ValueChangedEvent?.Invoke();
         }
         
-        private static Dictionary<Source, Binding> _bindingsBySource;
+        private static readonly Dictionary<Source, Binding> BindingsBySource = new();
 
         public static void Bind(IBindable bindable)
         {
             var source = new Source(bindable);
-            if (!_bindingsBySource.TryGetValue(source, out var binding))
+            if (!BindingsBySource.TryGetValue(source, out var binding))
             {
                 binding = new Binding();
-                _bindingsBySource[source] = binding;
+                BindingsBySource[source] = binding;
             }
             
             binding.Bind(bindable);
@@ -90,7 +109,7 @@ namespace Fizz6.Data
         public static void Unbind(IBindable bindable)
         {
             var source = new Source(bindable);
-            if (!_bindingsBySource.TryGetValue(source, out var binding))
+            if (!BindingsBySource.TryGetValue(source, out var binding))
                 return;
             
             binding.Unbind();
@@ -99,10 +118,10 @@ namespace Fizz6.Data
         public static void Subscribe(Component component, MemberInfo memberInfo, Action valueChangedCallback)
         {
             var source = new Source(component, memberInfo);
-            if (!_bindingsBySource.TryGetValue(source, out var binding))
+            if (!BindingsBySource.TryGetValue(source, out var binding))
             {
                 binding = new Binding();
-                _bindingsBySource[source] = binding;
+                BindingsBySource[source] = binding;
             }
             
             binding.Subscribe(valueChangedCallback);
@@ -111,7 +130,7 @@ namespace Fizz6.Data
         public static void Unsubscribe(Component component, MemberInfo memberInfo, Action valueChangedCallback)
         {
             var source = new Source(component, memberInfo);
-            if (!_bindingsBySource.TryGetValue(source, out var binding))
+            if (!BindingsBySource.TryGetValue(source, out var binding))
                 return;
             
             binding.Unsubscribe(valueChangedCallback);

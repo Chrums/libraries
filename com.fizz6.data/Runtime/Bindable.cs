@@ -9,26 +9,25 @@ namespace Fizz6.Data
         public IModel Model { get; }
         public string MemberName { get; }
         event Action ValueChangedEvent;
-        IBindable Bind(IModel model, string memberName);
-        IBindable Unbind();
         void Clear();
     }
 
     public interface IBindable<T> : IBindable
     {
         public Task<T> Task { get; }
+        public T Value { get; }
     }
 
     public class Bindable<T> : IBindable<T>
     {
         private TaskCompletionSource<T> _taskCompletionSource;
-        public virtual Task<T> Task =>
-            _taskCompletionSource == null
-                ? (_taskCompletionSource ??= new TaskCompletionSource<T>()).Task
-                : _taskCompletionSource.Task;
+        public Task<T> Task =>
+            _taskCompletionSource != null
+                ? _taskCompletionSource.Task
+                : (_taskCompletionSource ??= new()).Task;
 
-        public bool IsValid => 
-            _taskCompletionSource != null && _taskCompletionSource.Task.IsCompleted;
+        private bool IsValid =>
+            _taskCompletionSource is { Task: { IsCompleted: true } };
 
         public T Value
         {
@@ -36,15 +35,14 @@ namespace Fizz6.Data
                 IsValid
                     ? _taskCompletionSource.Task.Result
                     : default;
-            
             set
             {
                 if (IsValid && AreEqual(_taskCompletionSource.Task.Result, value))
                     return;
 
-                _taskCompletionSource = _taskCompletionSource == null || _taskCompletionSource.Task.IsCompleted
-                    ? new TaskCompletionSource<T>()
-                    : _taskCompletionSource;
+                _taskCompletionSource = _taskCompletionSource is { Task: { IsCompleted: false }}
+                    ? _taskCompletionSource
+                    : new();
                 
                 _taskCompletionSource.SetResult(value);
                 ValueChangedEvent?.Invoke();
@@ -56,83 +54,120 @@ namespace Fizz6.Data
         
         public event Action ValueChangedEvent;
 
-        public virtual IBindable Bind(IModel model, string memberName)
+        public Bindable(IModel model, string memberName)
         {
             Model = model;
             MemberName = memberName;
+            
             Bindings.Bind(this);
-            return this;
         }
 
-        public virtual IBindable Unbind()
+        ~Bindable()
         {
             Bindings.Unbind(this);
-            return this;
-        }
-        
-        public virtual void Clear()
-        {}
 
-        protected static bool AreEqual(T a, T b) =>
+            Model = null;
+            MemberName = null;
+        }
+
+        public void Clear() =>
+            _taskCompletionSource = null;
+
+        private static bool AreEqual(T a, T b) =>
             EqualityComparer<T>.Default.Equals(a, b);
     }
 
-    public class DependentBindable<T> : Bindable<T>
+    public class DependentBindable<T> : IBindable<T>
     {
         private TaskCompletionSource<T> _taskCompletionSource;
-        public override Task<T> Task =>
-            IsValid
-                ? base.Task 
+        public Task<T> Task =>
+            _taskCompletionSource != null
+                ? _taskCompletionSource.Task
                 : Refresh();
+        
+        private bool IsValid =>
+            _taskCompletionSource is { Task: { IsCompleted: true } };
+        
+        public T Value
+        {
+            get => 
+                IsValid
+                    ? _taskCompletionSource.Task.Result
+                    : default;
+            set
+            {
+                if (IsValid && AreEqual(_taskCompletionSource.Task.Result, value))
+                    return;
 
+                if (_taskCompletionSource is { Task: { IsCompleted: false } })
+                    _taskCompletionSource.SetCanceled();
+
+                _taskCompletionSource = new();
+                _taskCompletionSource.SetResult(value);
+                ValueChangedEvent?.Invoke();
+            }
+        }
+        
+        public IModel Model { get; private set; }
+        public string MemberName { get; private set; }
+        
         private Func<Task<T>> _refresh;
         private IReadOnlyList<IBindable> _dependencies;
         
+        public event Action ValueChangedEvent;
         public event Action RefreshEvent;
         
-        public IBindable Bind(IModel model, string name, Func<Task<T>> refresh, IReadOnlyList<IBindable> dependencies)
+        public DependentBindable(IModel model, string memberName, IReadOnlyList<IBindable> dependencies, Func<Task<T>> refresh)
         {
-            Bind(model, name);
+            Model = model;
+            MemberName = memberName;
             
-            _refresh = refresh;
             _dependencies = dependencies;
+            _refresh = refresh;
             
             foreach (var dependency in _dependencies)
                 dependency.ValueChangedEvent += OnDependencyValueChanged;
             
-            return this;
+            Bindings.Bind(this);
         }
 
-        public override IBindable Unbind()
+        ~DependentBindable()
         {
+            Bindings.Unbind(this);
+            
             foreach (var dependency in _dependencies)
                 dependency.ValueChangedEvent -= OnDependencyValueChanged;
             
-            return base.Unbind();
+            Model = null;
+            MemberName = null;
+
+            _dependencies = null;
+            _refresh = null;
         }
 
-        public override void Clear()
-        {
-            base.Clear();
+        public void Clear() =>
             _taskCompletionSource = null;
-        }
 
         public Task<T> Refresh()
         {
             if (_taskCompletionSource is { Task: { IsCompleted: false } })
-                return _taskCompletionSource.Task;
+                _taskCompletionSource.SetCanceled();
             
-            _taskCompletionSource = new TaskCompletionSource<T>();
+            var taskCompletionSource = new TaskCompletionSource<T>();
+            _taskCompletionSource = taskCompletionSource;
 
             RefreshEvent?.Invoke();
-            
+
             var task = _refresh.Invoke();
             task.ContinueWith(
                 async _ =>
                 {
+                    if (taskCompletionSource.Task.IsCanceled)
+                        return;
+                    
                     var value = await task;
-                    _taskCompletionSource.SetResult(value);
-                    Value = value;
+                    taskCompletionSource.SetResult(value);
+                    ValueChangedEvent?.Invoke();
                 }
             );
             
@@ -141,5 +176,49 @@ namespace Fizz6.Data
 
         private void OnDependencyValueChanged() =>
             Refresh();
+
+        private static bool AreEqual(T a, T b) =>
+            EqualityComparer<T>.Default.Equals(a, b);
+    }
+
+    public interface IInvokable
+    {
+        void Invoke();
+    }
+
+    public class InvokableBindable : IBindable, IInvokable
+    {
+        public IModel Model { get; private set; }
+        public string MemberName { get; private set; }
+
+        private Action _invoke;
+        
+        public event Action ValueChangedEvent;
+
+        public InvokableBindable(IModel model, string memberName, Action invoke)
+        {
+            Model = model;
+            MemberName = memberName;
+            
+            _invoke = invoke;
+            
+            Bindings.Bind(this);
+        }
+        
+        ~InvokableBindable()
+        {
+            Bindings.Unbind(this);
+
+            Model = null;
+            MemberName = null;
+
+            _invoke = null;
+        }
+
+        public void Clear()
+        {}
+
+        public void Invoke() =>
+            _invoke?.Invoke();
     }
 }

@@ -13,16 +13,10 @@ namespace Fizz6.Data
         public Component Component => this;
         
         private IReadOnlyList<IBindable> _bindables;
-        protected virtual IReadOnlyList<IBindable> Bindables { get; }
+        protected abstract IReadOnlyList<IBindable> Bindables { get; }
 
         protected virtual void Awake() =>
             _bindables = Bindables;
-        
-        protected virtual void OnDestroy()
-        {
-            foreach (var bindable in _bindables)
-                bindable.Unbind();
-        }
 
         public void Clear()
         {
