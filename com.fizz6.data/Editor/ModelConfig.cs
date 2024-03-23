@@ -9,7 +9,9 @@ namespace Fizz6.Data.Editor
 {
     public class ModelConfig : ScriptableObject
     {
-        private static readonly Type BindableType = typeof(IBindable<>);
+        private static readonly Type BindableType = typeof(IBindable);
+        private static readonly Type ValueBindableType = typeof(IValueBindable<>);
+        private static readonly Type InvokableBindableType = typeof(IInvokableBindable);
         
         [Serializable]
         public class Reference
@@ -102,13 +104,8 @@ namespace Fizz6.Data.Editor
                             return false;
                         
                         var bindableInterfaceType = interfaceTypes
-                            .FirstOrDefault(interfaceType => interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == BindableType);
-                        if (bindableInterfaceType == null)
-                            return false;
-            
-                        var memberType = bindableInterfaceType.GetGenericArguments()
-                            .FirstOrDefault();
-                        return memberType != null;
+                            .FirstOrDefault(interfaceType => interfaceType == BindableType);
+                        return bindableInterfaceType != null;
                     }
                 )
                 .Select(bindableMemberInfo => new SerializableMemberInfo(bindableMemberInfo))

@@ -7,6 +7,9 @@ namespace Fizz6.Data
 {
     public static class Bindings
     {
+        public interface ISubscription
+        {}
+        
         private class Source : IEquatable<Source>
         {
             private readonly string _identifier;
@@ -65,75 +68,165 @@ namespace Fizz6.Data
                 _identifier;
         }
 
-        private class Binding
+        private class ValueBinding
         {
-            public IBindable Bindable { get; private set; }
-            public event Action ValueChangedEvent;
+            private IValueBindable _bindable;
+            private readonly Dictionary<IValueBindableProviderSubscription, Action> _providerOnValueChangedActions = new();
+            public event Action<IValueBindable> BindableValueChangedEvent;
 
-            public void Bind(IBindable bindable)
+            public void Bind(IValueBindable bindable)
             {
-                Bindable = bindable;
-                Bindable.ValueChangedEvent += OnValueChanged;
+                _bindable = bindable;
+                _bindable.ValueChangedEvent += OnBindableValueChanged;
             }
 
             public void Unbind()
             {
-                Bindable.ValueChangedEvent -= OnValueChanged;
-                Bindable = null;
+                _bindable.ValueChangedEvent -= OnBindableValueChanged;
+                _bindable = null;
             }
 
-            public void Subscribe(Action valueChangedCallback) =>
-                ValueChangedEvent += valueChangedCallback;
+            public void Subscribe(IValueBindableSubscription subscription)
+            {
+                if (subscription is IValueBindableConsumerSubscription valueBindableConsumerSubscription)
+                {
+                    BindableValueChangedEvent += valueBindableConsumerSubscription.ValueChanged;
+                }
 
-            public void Unsubscribe(Action valueChangedCallback) =>
-                ValueChangedEvent -= valueChangedCallback;
+                if (subscription is IValueBindableProviderSubscription valueBindableProviderSubscription)
+                {
+                    void OnValueChanged() =>
+                        _bindable.ValueChanged(valueBindableProviderSubscription);
+                    
+                    _providerOnValueChangedActions.TryAdd(valueBindableProviderSubscription, OnValueChanged);
+                    valueBindableProviderSubscription.ValueChangedEvent += OnValueChanged;
+                }
+            }
 
-            private void OnValueChanged() =>
-                ValueChangedEvent?.Invoke();
+            public void Unsubscribe(IValueBindableSubscription subscription)
+            {
+                if (subscription is IValueBindableConsumerSubscription valueBindableConsumerSubscription)
+                {
+                    BindableValueChangedEvent -= valueBindableConsumerSubscription.ValueChanged;
+                }
+                
+                if (subscription is IValueBindableProviderSubscription valueBindableProviderSubscription)
+                {
+                    if (!_providerOnValueChangedActions.TryGetValue(valueBindableProviderSubscription, out var onValueChanged))
+                        return;
+
+                    _providerOnValueChangedActions.Remove(valueBindableProviderSubscription);
+                    valueBindableProviderSubscription.ValueChangedEvent -= onValueChanged;
+                }
+            }
+
+            private void OnBindableValueChanged() =>
+                BindableValueChangedEvent?.Invoke(_bindable);
         }
         
-        private static readonly Dictionary<Source, Binding> BindingsBySource = new();
+        private class InvokableBinding
+        {
+            private IInvokableBindable _bindable;
 
-        public static void Bind(IBindable bindable)
+            public void Bind(IInvokableBindable bindable) =>
+                _bindable = bindable;
+
+            public void Unbind() =>
+                _bindable = null;
+
+            public void Subscribe(IInvokableBindableSubscription subscription) =>
+                subscription.InvokeEvent += _bindable.Invoke;
+
+            public void Unsubscribe(IInvokableBindableSubscription subscription) =>
+                subscription.InvokeEvent -= _bindable.Invoke;
+        }
+        
+        private static readonly Dictionary<Source, ValueBinding> ValueBindings = new();
+
+        public static void Bind(IValueBindable bindable)
         {
             var source = new Source(bindable);
-            if (!BindingsBySource.TryGetValue(source, out var binding))
+            if (!ValueBindings.TryGetValue(source, out var binding))
             {
-                binding = new Binding();
-                BindingsBySource[source] = binding;
+                binding = new ValueBinding();
+                ValueBindings[source] = binding;
             }
             
             binding.Bind(bindable);
         }
 
-        public static void Unbind(IBindable bindable)
+        public static void Unbind(IValueBindable bindable)
         {
             var source = new Source(bindable);
-            if (!BindingsBySource.TryGetValue(source, out var binding))
+            if (!ValueBindings.TryGetValue(source, out var binding))
                 return;
             
             binding.Unbind();
         }
 
-        public static void Subscribe(Component component, MemberInfo memberInfo, Action valueChangedCallback)
+        public static void Subscribe(Component component, MemberInfo memberInfo, IValueBindableSubscription subscription)
         {
             var source = new Source(component, memberInfo);
-            if (!BindingsBySource.TryGetValue(source, out var binding))
+            if (!ValueBindings.TryGetValue(source, out var binding))
             {
-                binding = new Binding();
-                BindingsBySource[source] = binding;
+                binding = new ValueBinding();
+                ValueBindings[source] = binding;
             }
             
-            binding.Subscribe(valueChangedCallback);
+            binding.Subscribe(subscription);
         }
 
-        public static void Unsubscribe(Component component, MemberInfo memberInfo, Action valueChangedCallback)
+        public static void Unsubscribe(Component component, MemberInfo memberInfo, IValueBindableSubscription subscription)
         {
             var source = new Source(component, memberInfo);
-            if (!BindingsBySource.TryGetValue(source, out var binding))
+            if (!ValueBindings.TryGetValue(source, out var binding))
                 return;
             
-            binding.Unsubscribe(valueChangedCallback);
+            binding.Unsubscribe(subscription);
+        }
+        
+        private static readonly Dictionary<Source, InvokableBinding> InvokableBindings = new();
+
+        public static void Bind(IInvokableBindable bindable)
+        {
+            var source = new Source(bindable);
+            if (!InvokableBindings.TryGetValue(source, out var binding))
+            {
+                binding = new InvokableBinding();
+                InvokableBindings[source] = binding;
+            }
+            
+            binding.Bind(bindable);
+        }
+
+        public static void Unbind(IInvokableBindable bindable)
+        {
+            var source = new Source(bindable);
+            if (!InvokableBindings.TryGetValue(source, out var binding))
+                return;
+            
+            binding.Unbind();
+        }
+
+        public static void Subscribe(Component component, MemberInfo memberInfo, IInvokableBindableSubscription subscription)
+        {
+            var source = new Source(component, memberInfo);
+            if (!InvokableBindings.TryGetValue(source, out var binding))
+            {
+                binding = new InvokableBinding();
+                InvokableBindings[source] = binding;
+            }
+            
+            binding.Subscribe(subscription);
+        }
+
+        public static void Unsubscribe(Component component, MemberInfo memberInfo, IInvokableBindableSubscription subscription)
+        {
+            var source = new Source(component, memberInfo);
+            if (!InvokableBindings.TryGetValue(source, out var binding))
+                return;
+            
+            binding.Unsubscribe(subscription);
         }
     }
 }
